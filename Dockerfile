@@ -62,7 +62,7 @@ COPY server.py /app/server.py
 RUN mkdir -p /app/downloads
 
 # ============================================================
-# VERIFY EVERYTHING
+# VERIFY FILES
 # ============================================================
 
 RUN echo "===== SERVER.PY =====" \
@@ -73,7 +73,7 @@ RUN echo "===== SERVER.PY =====" \
     && ls -la /app/bgutil-ytdlp-pot-provider/server/build
 
 # ============================================================
-# START SERVER
+# START BOTH SERVICES
 # ============================================================
 
 CMD sh -c '\
@@ -90,5 +90,6 @@ CMD sh -c '\
     echo "========================================"; \
     echo "STARTING GUNICORN"; \
     echo "========================================"; \
+    cd /app; \
     exec gunicorn --bind 0.0.0.0:${PORT:-10000} server:app \
 '
