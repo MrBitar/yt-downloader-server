@@ -12,13 +12,12 @@ os.makedirs(
     exist_ok=True
 )
 
+
 # ============================================================
-# BGUTIL PO-TOKEN PROVIDER
+# BGUTIL PO-TOKEN HTTP PROVIDER
 # ============================================================
 
-BGUTIL_SERVER_HOME = (
-    "/app/bgutil-ytdlp-pot-provider/server"
-)
+BGUTIL_BASE_URL = "http://127.0.0.1:4416"
 
 
 # ============================================================
@@ -40,15 +39,15 @@ def get_ytdlp_options(extra_options=None):
         },
 
         # ----------------------------------------------------
-        # BGUTIL PO-token provider
+        # BGUTIL HTTP PO-token provider
         # ----------------------------------------------------
 
         "extractor_args": {
 
-            "youtubepot-bgutilscript": {
+            "youtubepot-bgutilhttp": {
 
-                "server_home":
-                    BGUTIL_SERVER_HOME
+                "base_url":
+                    BGUTIL_BASE_URL
 
             }
 
@@ -159,34 +158,49 @@ def get_info():
         )
 
         print(
-            "BGUTIL directory exists:",
-            os.path.exists(
-                BGUTIL_SERVER_HOME
-            ),
+            "BGUTIL URL:",
+            BGUTIL_BASE_URL,
             flush=True
         )
 
-        if os.path.exists(
-                BGUTIL_SERVER_HOME
-        ):
+        # ----------------------------------------------------
+        # Check bgutil HTTP server
+        # ----------------------------------------------------
 
-            try:
+        try:
 
-                print(
-                    "BGUTIL directory contents:",
-                    os.listdir(
-                        BGUTIL_SERVER_HOME
-                    ),
-                    flush=True
-                )
+            import urllib.request
 
-            except Exception as e:
+            response = urllib.request.urlopen(
+                BGUTIL_BASE_URL,
+                timeout=5
+            )
 
-                print(
-                    "Could not list BGUTIL directory:",
-                    str(e),
-                    flush=True
-                )
+            print(
+                "BGUTIL HTTP SERVER:",
+                "REACHABLE",
+                flush=True
+            )
+
+            print(
+                "BGUTIL HTTP STATUS:",
+                response.status,
+                flush=True
+            )
+
+        except Exception as bgutil_error:
+
+            print(
+                "BGUTIL HTTP SERVER:",
+                "NOT REACHABLE",
+                flush=True
+            )
+
+            print(
+                "BGUTIL ERROR:",
+                str(bgutil_error),
+                flush=True
+            )
 
         # ----------------------------------------------------
         # yt-dlp options
@@ -889,6 +903,10 @@ def cleanup_file(file_id):
 
                     break
 
+        # ----------------------------------------------------
+        # Already deleted
+        # ----------------------------------------------------
+
         if not filepath:
 
             return jsonify({
@@ -900,6 +918,10 @@ def cleanup_file(file_id):
                     "File already deleted"
 
             })
+
+        # ----------------------------------------------------
+        # Delete
+        # ----------------------------------------------------
 
         try:
 
@@ -989,8 +1011,8 @@ if __name__ == "__main__":
     )
 
     print(
-        "BGUTIL provider:",
-        BGUTIL_SERVER_HOME,
+        "BGUTIL URL:",
+        BGUTIL_BASE_URL,
         flush=True
     )
 
@@ -1014,4 +1036,3 @@ if __name__ == "__main__":
         debug=True
 
     )
-
