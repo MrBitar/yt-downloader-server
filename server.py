@@ -1,3 +1,4 @@
+```python
 from flask import Flask, request, jsonify, send_file
 import yt_dlp
 import os
@@ -7,7 +8,45 @@ app = Flask(__name__)
 
 DOWNLOAD_FOLDER = "downloads"
 
-os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
+os.makedirs(
+    DOWNLOAD_FOLDER,
+    exist_ok=True
+)
+
+# ============================================================
+# BGUTIL PO-TOKEN PROVIDER
+# ============================================================
+
+BGUTIL_SERVER_HOME = (
+    "/app/bgutil-ytdlp-pot-provider/server"
+)
+
+
+def get_ytdlp_options(extra_options=None):
+    """
+    Create common yt-dlp options with the bgutil
+    PO-token provider configured.
+    """
+
+    options = {
+
+        "extractor_args": {
+
+            "youtubepot-bgutilscript": {
+
+                "server_home":
+                    BGUTIL_SERVER_HOME
+
+            }
+
+        }
+
+    }
+
+    if extra_options:
+        options.update(extra_options)
+
+    return options
 
 
 # ============================================================
@@ -19,13 +58,19 @@ def get_info():
 
     try:
 
-        data = request.get_json(silent=True)
+        data = request.get_json(
+            silent=True
+        )
 
         if not data:
 
             return jsonify({
+
                 "success": False,
-                "error": "Invalid JSON request"
+
+                "error":
+                    "Invalid JSON request"
+
             }), 400
 
         url = data.get(
@@ -36,8 +81,12 @@ def get_info():
         if not url:
 
             return jsonify({
+
                 "success": False,
-                "error": "URL is required"
+
+                "error":
+                    "URL is required"
+
             }), 400
 
         print()
@@ -46,18 +95,22 @@ def get_info():
         print("URL:", url)
         print("================================")
 
-        options = {
+        options = get_ytdlp_options({
 
-            "quiet": True,
+            "quiet":
+                True,
 
-            "no_warnings": True,
+            "no_warnings":
+                True,
 
-            "skip_download": True
+            "skip_download":
+                True
 
-        }
+        })
 
         with yt_dlp.YoutubeDL(
-                options) as ydl:
+                options
+        ) as ydl:
 
             info = ydl.extract_info(
                 url,
@@ -134,15 +187,14 @@ def get_info():
 
             qualities.append({
 
-                "format_id": str(
-                    format_id
-                ),
+                "format_id":
+                    str(format_id),
 
-                "height": int(
-                    height
-                ),
+                "height":
+                    int(height),
 
-                "ext": extension or ""
+                "ext":
+                    extension or ""
 
             })
 
@@ -167,11 +219,12 @@ def get_info():
         )
 
         # ----------------------------------------------------
-        # Sort from lowest to highest
+        # Sort lowest to highest
         # ----------------------------------------------------
 
         qualities.sort(
-            key=lambda x: x["height"]
+            key=lambda x:
+                x["height"]
         )
 
         print(
@@ -182,15 +235,20 @@ def get_info():
 
         return jsonify({
 
-            "success": True,
+            "success":
+                True,
 
-            "title": title,
+            "title":
+                title,
 
-            "thumbnail": thumbnail,
+            "thumbnail":
+                thumbnail,
 
-            "duration": duration,
+            "duration":
+                duration,
 
-            "qualities": qualities
+            "qualities":
+                qualities
 
         })
 
@@ -206,9 +264,11 @@ def get_info():
 
         return jsonify({
 
-            "success": False,
+            "success":
+                False,
 
-            "error": str(e)
+            "error":
+                str(e)
 
         }), 500
 
@@ -232,7 +292,8 @@ def download():
 
             return jsonify({
 
-                "success": False,
+                "success":
+                    False,
 
                 "error":
                     "Invalid JSON request"
@@ -255,7 +316,8 @@ def download():
 
             return jsonify({
 
-                "success": False,
+                "success":
+                    False,
 
                 "error":
                     "URL is required"
@@ -266,7 +328,8 @@ def download():
 
             return jsonify({
 
-                "success": False,
+                "success":
+                    False,
 
                 "error":
                     "Format is required"
@@ -282,8 +345,11 @@ def download():
         )
 
         output_template = os.path.join(
+
             DOWNLOAD_FOLDER,
+
             file_id + ".%(ext)s"
+
         )
 
         print()
@@ -300,7 +366,7 @@ def download():
         # yt-dlp options
         # ----------------------------------------------------
 
-        ydl_opts = {
+        ydl_opts = get_ytdlp_options({
 
             "format": (
                 f"{format_id}+bestaudio/"
@@ -319,14 +385,15 @@ def download():
             "no_warnings":
                 False
 
-        }
+        })
 
         # ----------------------------------------------------
         # Download
         # ----------------------------------------------------
 
         with yt_dlp.YoutubeDL(
-                ydl_opts) as ydl:
+                ydl_opts
+        ) as ydl:
 
             ydl.extract_info(
                 url,
@@ -340,15 +407,19 @@ def download():
         downloaded_file = None
 
         for filename in os.listdir(
-                DOWNLOAD_FOLDER):
+                DOWNLOAD_FOLDER
+        ):
 
             if filename.startswith(
                     file_id
             ):
 
                 filepath = os.path.join(
+
                     DOWNLOAD_FOLDER,
+
                     filename
+
                 )
 
                 if os.path.isfile(
@@ -367,7 +438,8 @@ def download():
 
             return jsonify({
 
-                "success": False,
+                "success":
+                    False,
 
                 "error":
                     "Download completed but file was not found"
@@ -392,7 +464,8 @@ def download():
 
         return jsonify({
 
-            "success": True,
+            "success":
+                True,
 
             "file_id":
                 file_id,
@@ -421,15 +494,19 @@ def download():
             try:
 
                 for filename in os.listdir(
-                        DOWNLOAD_FOLDER):
+                        DOWNLOAD_FOLDER
+                ):
 
                     if filename.startswith(
                             file_id
                     ):
 
                         filepath = os.path.join(
+
                             DOWNLOAD_FOLDER,
+
                             filename
+
                         )
 
                         if os.path.isfile(
@@ -467,7 +544,8 @@ def download():
 
         return jsonify({
 
-            "success": False,
+            "success":
+                False,
 
             "error":
                 str(e)
@@ -479,7 +557,10 @@ def download():
 # SEND FILE TO ANDROID
 # ============================================================
 
-@app.route("/file/<file_id>", methods=["GET"])
+@app.route(
+    "/file/<file_id>",
+    methods=["GET"]
+)
 def get_file(file_id):
 
     try:
@@ -487,15 +568,19 @@ def get_file(file_id):
         filepath = None
 
         for filename in os.listdir(
-                DOWNLOAD_FOLDER):
+                DOWNLOAD_FOLDER
+        ):
 
             if filename.startswith(
                     file_id
             ):
 
                 possible_path = os.path.join(
+
                     DOWNLOAD_FOLDER,
+
                     filename
+
                 )
 
                 if os.path.isfile(
@@ -510,7 +595,8 @@ def get_file(file_id):
 
             return jsonify({
 
-                "success": False,
+                "success":
+                    False,
 
                 "error":
                     "File not found"
@@ -553,7 +639,8 @@ def get_file(file_id):
 
         return jsonify({
 
-            "success": False,
+            "success":
+                False,
 
             "error":
                 str(e)
@@ -576,15 +663,19 @@ def cleanup_file(file_id):
         filepath = None
 
         for filename in os.listdir(
-                DOWNLOAD_FOLDER):
+                DOWNLOAD_FOLDER
+        ):
 
             if filename.startswith(
                     file_id
             ):
 
                 possible_path = os.path.join(
+
                     DOWNLOAD_FOLDER,
+
                     filename
+
                 )
 
                 if os.path.isfile(
@@ -603,7 +694,8 @@ def cleanup_file(file_id):
 
             return jsonify({
 
-                "success": True,
+                "success":
+                    True,
 
                 "message":
                     "File already deleted"
@@ -624,7 +716,8 @@ def cleanup_file(file_id):
 
             return jsonify({
 
-                "success": False,
+                "success":
+                    False,
 
                 "error":
                     "File is still being used"
@@ -641,7 +734,8 @@ def cleanup_file(file_id):
 
         return jsonify({
 
-            "success": True,
+            "success":
+                True,
 
             "message":
                 "File deleted successfully"
@@ -660,7 +754,8 @@ def cleanup_file(file_id):
 
         return jsonify({
 
-            "success": False,
+            "success":
+                False,
 
             "error":
                 str(e)
@@ -685,6 +780,10 @@ if __name__ == "__main__":
             DOWNLOAD_FOLDER
         )
     )
+    print("BGUTIL provider:")
+    print(
+        BGUTIL_SERVER_HOME
+    )
     print("================================")
     print()
 
@@ -697,3 +796,4 @@ if __name__ == "__main__":
         debug=True
 
     )
+```
