@@ -21,26 +21,26 @@ BGUTIL_SERVER_HOME = (
 )
 
 
-def get_ytdlp_options(extra_options=None):
-    """
-    Common yt-dlp configuration.
+# ============================================================
+# COMMON YT-DLP OPTIONS
+# ============================================================
 
-    Enables Node.js for yt-dlp's JavaScript challenges
-    and configures the bgutil PO-token provider.
-    """
+def get_ytdlp_options(extra_options=None):
 
     options = {
 
         # ----------------------------------------------------
-        # JavaScript runtime
+        # Enable Node.js JavaScript runtime
         # ----------------------------------------------------
 
         "js_runtimes": {
-            "node": "/usr/bin/node"
+            "node": {
+                "path": "/usr/bin/node"
+            }
         },
 
         # ----------------------------------------------------
-        # YouTube PO-token provider
+        # BGUTIL PO-token provider
         # ----------------------------------------------------
 
         "extractor_args": {
@@ -57,7 +57,10 @@ def get_ytdlp_options(extra_options=None):
     }
 
     if extra_options:
-        options.update(extra_options)
+
+        options.update(
+            extra_options
+        )
 
     return options
 
@@ -66,7 +69,10 @@ def get_ytdlp_options(extra_options=None):
 # GET VIDEO INFORMATION
 # ============================================================
 
-@app.route("/info", methods=["POST"])
+@app.route(
+    "/info",
+    methods=["POST"]
+)
 def get_info():
 
     try:
@@ -102,31 +108,35 @@ def get_info():
 
             }), 400
 
-        print()
-        print("================================")
-        print("INFO REQUEST")
-        print("URL:", url)
-        print("================================", flush=True)
+        print(
+            "",
+            flush=True
+        )
+
+        print(
+            "================================",
+            flush=True
+        )
+
+        print(
+            "INFO REQUEST",
+            flush=True
+        )
+
+        print(
+            "URL:",
+            url,
+            flush=True
+        )
+
+        print(
+            "================================",
+            flush=True
+        )
 
         # ----------------------------------------------------
-        # yt-dlp info options
+        # Diagnostics
         # ----------------------------------------------------
-
-        options = get_ytdlp_options({
-
-            "quiet":
-                False,
-
-            "no_warnings":
-                False,
-
-            "verbose":
-                True,
-
-            "skip_download":
-                True
-
-        })
 
         print(
             "YT-DLP VERSION:",
@@ -156,6 +166,62 @@ def get_info():
             flush=True
         )
 
+        if os.path.exists(
+                BGUTIL_SERVER_HOME
+        ):
+
+            try:
+
+                print(
+                    "BGUTIL directory contents:",
+                    os.listdir(
+                        BGUTIL_SERVER_HOME
+                    ),
+                    flush=True
+                )
+
+            except Exception as e:
+
+                print(
+                    "Could not list BGUTIL directory:",
+                    str(e),
+                    flush=True
+                )
+
+        # ----------------------------------------------------
+        # yt-dlp options
+        # ----------------------------------------------------
+
+        options = get_ytdlp_options({
+
+            "quiet":
+                False,
+
+            "no_warnings":
+                False,
+
+            "verbose":
+                True,
+
+            "skip_download":
+                True
+
+        })
+
+        print(
+            "YT-DLP OPTIONS CREATED",
+            flush=True
+        )
+
+        print(
+            "STARTING YT-DLP EXTRACTION NOW",
+            flush=True
+        )
+
+        # ----------------------------------------------------
+        # Extract information
+        # ----------------------------------------------------
+
         with yt_dlp.YoutubeDL(
                 options
         ) as ydl:
@@ -164,6 +230,11 @@ def get_info():
                 url,
                 download=False
             )
+
+        print(
+            "YT-DLP EXTRACTION FINISHED",
+            flush=True
+        )
 
         # ----------------------------------------------------
         # Basic information
@@ -228,9 +299,11 @@ def get_info():
             )
 
             if not format_id:
+
                 continue
 
             if not height:
+
                 continue
 
             qualities.append({
@@ -303,13 +376,35 @@ def get_info():
 
     except Exception as e:
 
-        print()
-        print("================================")
-        print("INFO ERROR")
-        print("================================")
-        print(str(e))
-        print("================================")
-        print()
+        print(
+            "",
+            flush=True
+        )
+
+        print(
+            "================================",
+            flush=True
+        )
+
+        print(
+            "INFO ERROR",
+            flush=True
+        )
+
+        print(
+            str(e),
+            flush=True
+        )
+
+        print(
+            "================================",
+            flush=True
+        )
+
+        print(
+            "",
+            flush=True
+        )
 
         return jsonify({
 
@@ -326,7 +421,10 @@ def get_info():
 # DOWNLOAD VIDEO
 # ============================================================
 
-@app.route("/download", methods=["POST"])
+@app.route(
+    "/download",
+    methods=["POST"]
+)
 def download():
 
     file_id = None
@@ -401,18 +499,46 @@ def download():
 
         )
 
-        print()
-        print("================================")
-        print("STARTING DOWNLOAD")
-        print("================================")
-        print("URL:", url)
-        print("Format:", format_id)
-        print("File ID:", file_id)
-        print("================================")
-        print()
+        print(
+            "",
+            flush=True
+        )
+
+        print(
+            "================================",
+            flush=True
+        )
+
+        print(
+            "STARTING DOWNLOAD",
+            flush=True
+        )
+
+        print(
+            "URL:",
+            url,
+            flush=True
+        )
+
+        print(
+            "Format:",
+            format_id,
+            flush=True
+        )
+
+        print(
+            "File ID:",
+            file_id,
+            flush=True
+        )
+
+        print(
+            "================================",
+            flush=True
+        )
 
         # ----------------------------------------------------
-        # yt-dlp download options
+        # Download options
         # ----------------------------------------------------
 
         ydl_opts = get_ytdlp_options({
@@ -439,6 +565,11 @@ def download():
 
         })
 
+        print(
+            "STARTING YT-DLP DOWNLOAD",
+            flush=True
+        )
+
         # ----------------------------------------------------
         # Download
         # ----------------------------------------------------
@@ -451,6 +582,11 @@ def download():
                 url,
                 download=True
             )
+
+        print(
+            "YT-DLP DOWNLOAD FINISHED",
+            flush=True
+        )
 
         # ----------------------------------------------------
         # Find downloaded file
@@ -499,20 +635,18 @@ def download():
             }), 500
 
         # ----------------------------------------------------
-        # Get filename
+        # Filename
         # ----------------------------------------------------
 
         filename = os.path.basename(
             downloaded_file
         )
 
-        print()
-        print("================================")
-        print("DOWNLOAD COMPLETE")
-        print("================================")
-        print("File:", filename)
-        print("================================")
-        print()
+        print(
+            "DOWNLOAD COMPLETE:",
+            filename,
+            flush=True
+        )
 
         return jsonify({
 
@@ -529,13 +663,30 @@ def download():
 
     except Exception as e:
 
-        print()
-        print("================================")
-        print("DOWNLOAD ERROR")
-        print("================================")
-        print(str(e))
-        print("================================")
-        print()
+        print(
+            "",
+            flush=True
+        )
+
+        print(
+            "================================",
+            flush=True
+        )
+
+        print(
+            "DOWNLOAD ERROR",
+            flush=True
+        )
+
+        print(
+            str(e),
+            flush=True
+        )
+
+        print(
+            "================================",
+            flush=True
+        )
 
         # ----------------------------------------------------
         # Delete partial files
@@ -573,25 +724,29 @@ def download():
 
                                 print(
                                     "Deleted partial file:",
-                                    filepath
+                                    filepath,
+                                    flush=True
                                 )
 
                             except Exception as cleanup_error:
 
                                 print(
                                     "Could not delete:",
-                                    filepath
+                                    filepath,
+                                    flush=True
                                 )
 
                                 print(
-                                    cleanup_error
+                                    cleanup_error,
+                                    flush=True
                                 )
 
             except Exception as cleanup_error:
 
                 print(
                     "Partial-file cleanup error:",
-                    cleanup_error
+                    cleanup_error,
+                    flush=True
                 )
 
         return jsonify({
@@ -655,13 +810,11 @@ def get_file(file_id):
 
             }), 404
 
-        print()
-        print("================================")
-        print("SENDING FILE")
-        print("================================")
-        print(filepath)
-        print("================================")
-        print()
+        print(
+            "SENDING FILE:",
+            filepath,
+            flush=True
+        )
 
         return send_file(
 
@@ -681,13 +834,11 @@ def get_file(file_id):
 
     except Exception as e:
 
-        print()
-        print("================================")
-        print("FILE ERROR")
-        print("================================")
-        print(str(e))
-        print("================================")
-        print()
+        print(
+            "FILE ERROR:",
+            str(e),
+            flush=True
+        )
 
         return jsonify({
 
@@ -738,10 +889,6 @@ def cleanup_file(file_id):
 
                     break
 
-        # ----------------------------------------------------
-        # Already deleted
-        # ----------------------------------------------------
-
         if not filepath:
 
             return jsonify({
@@ -753,10 +900,6 @@ def cleanup_file(file_id):
                     "File already deleted"
 
             })
-
-        # ----------------------------------------------------
-        # Try deleting
-        # ----------------------------------------------------
 
         try:
 
@@ -776,13 +919,11 @@ def cleanup_file(file_id):
 
             }), 409
 
-        print()
-        print("================================")
-        print("TEMPORARY FILE DELETED")
-        print("================================")
-        print(filepath)
-        print("================================")
-        print()
+        print(
+            "TEMPORARY FILE DELETED:",
+            filepath,
+            flush=True
+        )
 
         return jsonify({
 
@@ -796,13 +937,11 @@ def cleanup_file(file_id):
 
     except Exception as e:
 
-        print()
-        print("================================")
-        print("CLEANUP ERROR")
-        print("================================")
-        print(str(e))
-        print("================================")
-        print()
+        print(
+            "CLEANUP ERROR:",
+            str(e),
+            flush=True
+        )
 
         return jsonify({
 
@@ -821,27 +960,50 @@ def cleanup_file(file_id):
 
 if __name__ == "__main__":
 
-    print()
-    print("================================")
-    print("YT DOWNLOADER BACKEND")
-    print("================================")
-    print("Server running on port 5000")
-    print("Download folder:")
     print(
+        "================================",
+        flush=True
+    )
+
+    print(
+        "YT DOWNLOADER BACKEND",
+        flush=True
+    )
+
+    print(
+        "================================",
+        flush=True
+    )
+
+    print(
+        "Server running on port 5000",
+        flush=True
+    )
+
+    print(
+        "Download folder:",
         os.path.abspath(
             DOWNLOAD_FOLDER
-        )
+        ),
+        flush=True
     )
-    print("BGUTIL provider:")
+
     print(
-        BGUTIL_SERVER_HOME
+        "BGUTIL provider:",
+        BGUTIL_SERVER_HOME,
+        flush=True
     )
-    print("Node.js:")
+
     print(
-        "/usr/bin/node"
+        "Node.js:",
+        "/usr/bin/node",
+        flush=True
     )
-    print("================================")
-    print()
+
+    print(
+        "================================",
+        flush=True
+    )
 
     app.run(
 
@@ -852,3 +1014,4 @@ if __name__ == "__main__":
         debug=True
 
     )
+
