@@ -1,3 +1,4 @@
+
 from flask import Flask, request, jsonify, send_file
 import yt_dlp
 import os
@@ -9,11 +10,11 @@ import time
 
 app = Flask(__name__)
 
-DOWNLOAD_FOLDER = "downloads"
+DOWNLOAD_FOLDER = "/app/downloads"
 BGUTIL_URL = "http://127.0.0.1:4416"
+NODE_PATH = "/usr/bin/node"
 
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
-
 
 # ============================================================
 # BGUTIL PO TOKEN SERVER
@@ -27,25 +28,22 @@ def start_bgutil():
 
     server_directory = "/app/bgutil-ytdlp-pot-provider/server"
 
-    if not os.path.isdir(server_directory):
-        print("BGUTIL SERVER DIRECTORY NOT FOUND")
-        return
-
     print("================================")
     print("STARTING BGUTIL PO TOKEN SERVER")
     print("================================")
     print("Directory:", server_directory)
 
+    if not os.path.isdir(server_directory):
+        print("ERROR: BGUTIL SERVER DIRECTORY NOT FOUND")
+        return False
+
+    package_json = os.path.join(server_directory, "package.json")
+
+    if not os.path.isfile(package_json):
+        print("ERROR: BGUTIL package.json NOT FOUND")
+        return False
+
     try:
-        package_json = os.path.join(
-            server_directory,
-            "package.json"
-        )
-
-        if not os.path.isfile(package_json):
-            print("BGUTIL package.json NOT FOUND")
-            return
-
         print("Starting bgutil HTTP server...")
 
         bgutil_process = subprocess.Popen(
@@ -72,38 +70,76 @@ def start_bgutil():
         print("BGUTIL PROCESS STARTED")
         print("PID:", bgutil_process.pid)
 
+        return True
+
     except Exception as e:
         print("BGUTIL START ERROR:", str(e))
+        return False
 
 
 def check_bgutil():
+    """
+    BGUtil does not necessarily expose a normal health endpoint.
+    Therefore a 404 still means that the HTTP server is reachable.
+    """
+
     try:
         response = requests.get(
             BGUTIL_URL,
             timeout=5
         )
 
-        print("BGUTIL HTTP STATUS:", response.status_code)
-        print("BGUTIL HTTP SERVER: REACHABLE")
+        print(
+            "BGUTIL HTTP STATUS:",
+            response.status_code
+        )
+
+        print(
+            "BGUTIL HTTP SERVER: REACHABLE"
+        )
 
         return True
 
-    except Exception as e:
-        print("BGUTIL HTTP SERVER: NOT REACHABLE")
-        print("BGUTIL ERROR:", str(e))
+    except requests.exceptions.RequestException as e:
+        print(
+            "BGUTIL HTTP SERVER: NOT REACHABLE"
+        )
+
+        print(
+            "BGUTIL ERROR:",
+            str(e)
+        )
 
         return False
 
 
 def initialize_bgutil():
-    start_bgutil()
+    started = start_bgutil()
 
-    time.sleep(3)
+    if not started:
+        print("BGUTIL FAILED TO START")
+        return
 
-    check_bgutil()
+    print("Waiting for BGUtil HTTP server...")
+
+    for attempt in range(15):
+        time.sleep(1)
+
+        print(
+            "BGUTIL CHECK ATTEMPT:",
+            attempt + 1
+        )
+
+        if check_bgutil():
+            print("BGUTIL HTTP SERVER IS REACHABLE")
+            return
+
+    print(
+        "WARNING: BGUTIL HTTP SERVER DID NOT BECOME REACHABLE"
+    )
 
 
-# Start bgutil when the application starts.
+# Start BGUtil in background.
 bgutil_thread = threading.Thread(
     target=initialize_bgutil,
     daemon=True
@@ -117,25 +153,36 @@ bgutil_thread.start()
 # ============================================================
 
 def create_yt_dlp_options(skip_download=True):
+    """
+    Common yt-dlp configuration.
+
+    This configuration is intentionally shared by BOTH
+    /info and /download so they use the same YouTube
+    extraction environment.
+    """
 
     options = {
         "quiet": False,
         "no_warnings": False,
         "verbose": True,
+
         "skip_download": skip_download,
 
+        # Node.js JavaScript runtime
         "js_runtimes": {
             "node": {
-                "path": "/usr/bin/node"
+                "path": NODE_PATH
             }
         },
 
+        # BGUtil PO Token provider
         "extractor_args": {
             "youtubepot-bgutilhttp": {
                 "base_url": BGUTIL_URL
             }
         },
 
+        # Browser-like headers
         "http_headers": {
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -143,12 +190,17 @@ def create_yt_dlp_options(skip_download=True):
                 "(KHTML, like Gecko) "
                 "Chrome/144.0.0.0 Safari/537.36"
             ),
+
             "Accept": (
                 "text/html,application/xhtml+xml,"
                 "application/xml;q=0.9,"
                 "*/*;q=0.8"
             ),
-            "Accept-Language": "en-us,en;q=0.5",
+
+            "Accept-Language": (
+                "en-US,en;q=0.9"
+            ),
+
             "Sec-Fetch-Mode": "navigate"
         }
     }
@@ -157,7 +209,7 @@ def create_yt_dlp_options(skip_download=True):
 
 
 # ============================================================
-# HOME / HEALTH CHECK
+# HOME
 # ============================================================
 
 @app.route("/", methods=["GET"])
@@ -170,6 +222,10 @@ def home():
         "bgutil_url": BGUTIL_URL
     })
 
+
+# ============================================================
+# HEALTH
+# ============================================================
 
 @app.route("/health", methods=["GET"])
 def health():
@@ -185,7 +241,7 @@ def health():
 
 
 # ============================================================
-# GET VIDEO INFORMATION
+# INFO
 # ============================================================
 
 @app.route("/info", methods=["POST"])
@@ -196,19 +252,16 @@ def get_info():
         data = request.get_json(silent=True)
 
         if not data:
-
             return jsonify({
                 "success": False,
                 "error": "Invalid JSON request"
             }), 400
 
-        url = data.get(
-            "url",
-            ""
+        url = str(
+            data.get("url", "")
         ).strip()
 
         if not url:
-
             return jsonify({
                 "success": False,
                 "error": "URL is required"
@@ -227,12 +280,12 @@ def get_info():
 
         print(
             "Node.js path:",
-            "/usr/bin/node"
+            NODE_PATH
         )
 
         print(
             "Node.js exists:",
-            os.path.exists("/usr/bin/node")
+            os.path.exists(NODE_PATH)
         )
 
         print(
@@ -326,19 +379,18 @@ def get_info():
 
             try:
                 height = int(height)
+
             except (TypeError, ValueError):
                 continue
 
+            # Ignore tiny storyboard/mhtml formats.
+            if height < 100:
+                continue
+
             qualities.append({
-
-                "format_id": str(
-                    format_id
-                ),
-
+                "format_id": str(format_id),
                 "height": height,
-
                 "ext": extension or ""
-
             })
 
         # ----------------------------------------------------
@@ -408,7 +460,7 @@ def get_info():
 
 
 # ============================================================
-# DOWNLOAD VIDEO
+# DOWNLOAD
 # ============================================================
 
 @app.route("/download", methods=["POST"])
@@ -425,16 +477,15 @@ def download():
         if not data:
 
             return jsonify({
-
                 "success": False,
-
                 "error": "Invalid JSON request"
-
             }), 400
 
-        url = data.get(
-            "url",
-            ""
+        url = str(
+            data.get(
+                "url",
+                ""
+            )
         ).strip()
 
         format_id = str(
@@ -447,25 +498,19 @@ def download():
         if not url:
 
             return jsonify({
-
                 "success": False,
-
                 "error": "URL is required"
-
             }), 400
 
         if not format_id:
 
             return jsonify({
-
                 "success": False,
-
                 "error": "Format is required"
-
             }), 400
 
         # ----------------------------------------------------
-        # File ID
+        # Generate file ID
         # ----------------------------------------------------
 
         file_id = str(
@@ -482,10 +527,9 @@ def download():
         print("STARTING DOWNLOAD")
         print("================================")
         print("URL:", url)
-        print("Format:", format_id)
-        print("File ID:", file_id)
+        print("FORMAT ID:", format_id)
+        print("FILE ID:", file_id)
         print("================================")
-        print()
 
         print(
             "BGUTIL STATUS BEFORE DOWNLOAD:"
@@ -494,12 +538,21 @@ def download():
         check_bgutil()
 
         # ----------------------------------------------------
-        # yt-dlp options
+        # IMPORTANT:
+        # Use exactly the same yt-dlp configuration as /info.
         # ----------------------------------------------------
 
         ydl_opts = create_yt_dlp_options(
             skip_download=False
         )
+
+        # ----------------------------------------------------
+        # Format selection
+        #
+        # First try requested video format + best audio.
+        # If that exact combination is unavailable, fall
+        # back to the requested format by itself.
+        # ----------------------------------------------------
 
         ydl_opts.update({
 
@@ -508,19 +561,34 @@ def download():
                 f"{format_id}"
             ),
 
-            "outtmpl":
-                output_template,
+            "outtmpl": output_template,
 
-            "merge_output_format":
-                "mp4"
+            "merge_output_format": "mp4",
 
+            # Do not stop merely because some formats are
+            # unavailable.
+            "ignoreerrors": False
         })
 
-        # ----------------------------------------------------
-        # Download
-        # ----------------------------------------------------
+        print()
+        print("YT-DLP DOWNLOAD OPTIONS:")
+        print(
+            "FORMAT:",
+            ydl_opts["format"]
+        )
 
+        print(
+            "OUTPUT:",
+            output_template
+        )
+
+        print()
         print("STARTING YT-DLP DOWNLOAD")
+        print()
+
+        # ----------------------------------------------------
+        # Actual download
+        # ----------------------------------------------------
 
         with yt_dlp.YoutubeDL(
             ydl_opts
@@ -541,22 +609,21 @@ def download():
             DOWNLOAD_FOLDER
         ):
 
-            if filename.startswith(
+            if not filename.startswith(
                 file_id
             ):
+                continue
 
-                filepath = os.path.join(
-                    DOWNLOAD_FOLDER,
-                    filename
-                )
+            filepath = os.path.join(
+                DOWNLOAD_FOLDER,
+                filename
+            )
 
-                if os.path.isfile(
-                    filepath
-                ):
+            if os.path.isfile(filepath):
 
-                    downloaded_file = filepath
+                downloaded_file = filepath
 
-                    break
+                break
 
         # ----------------------------------------------------
         # File not found
@@ -572,10 +639,6 @@ def download():
                     "Download completed but file was not found"
 
             }), 500
-
-        # ----------------------------------------------------
-        # Filename
-        # ----------------------------------------------------
 
         filename = os.path.basename(
             downloaded_file
@@ -593,11 +656,9 @@ def download():
 
             "success": True,
 
-            "file_id":
-                file_id,
+            "file_id": file_id,
 
-            "filename":
-                filename
+            "filename": filename
 
         })
 
@@ -623,40 +684,37 @@ def download():
                     DOWNLOAD_FOLDER
                 ):
 
-                    if filename.startswith(
+                    if not filename.startswith(
                         file_id
                     ):
+                        continue
 
-                        filepath = os.path.join(
-                            DOWNLOAD_FOLDER,
-                            filename
-                        )
+                    filepath = os.path.join(
+                        DOWNLOAD_FOLDER,
+                        filename
+                    )
 
-                        if os.path.isfile(
-                            filepath
-                        ):
+                    if os.path.isfile(filepath):
 
-                            try:
+                        try:
 
-                                os.remove(
-                                    filepath
-                                )
+                            os.remove(filepath)
 
-                                print(
-                                    "Deleted partial file:",
-                                    filepath
-                                )
+                            print(
+                                "Deleted partial file:",
+                                filepath
+                            )
 
-                            except Exception as cleanup_error:
+                        except Exception as cleanup_error:
 
-                                print(
-                                    "Could not delete:",
-                                    filepath
-                                )
+                            print(
+                                "Could not delete:",
+                                filepath
+                            )
 
-                                print(
-                                    cleanup_error
-                                )
+                            print(
+                                cleanup_error
+                            )
 
             except Exception as cleanup_error:
 
@@ -669,14 +727,13 @@ def download():
 
             "success": False,
 
-            "error":
-                str(e)
+            "error": str(e)
 
         }), 500
 
 
 # ============================================================
-# SEND FILE TO ANDROID
+# SEND FILE
 # ============================================================
 
 @app.route(
@@ -735,13 +792,11 @@ def get_file(file_id):
 
             as_attachment=True,
 
-            download_name=
-                os.path.basename(
-                    filepath
-                ),
+            download_name=os.path.basename(
+                filepath
+            ),
 
-            mimetype=
-                "video/mp4"
+            mimetype="video/mp4"
 
         )
 
@@ -759,14 +814,13 @@ def get_file(file_id):
 
             "success": False,
 
-            "error":
-                str(e)
+            "error": str(e)
 
         }), 500
 
 
 # ============================================================
-# CLEANUP TEMPORARY FILE
+# CLEANUP FILE
 # ============================================================
 
 @app.route(
@@ -800,10 +854,6 @@ def cleanup_file(file_id):
 
                     break
 
-        # ----------------------------------------------------
-        # Already deleted
-        # ----------------------------------------------------
-
         if not filepath:
 
             return jsonify({
@@ -815,15 +865,9 @@ def cleanup_file(file_id):
 
             })
 
-        # ----------------------------------------------------
-        # Delete
-        # ----------------------------------------------------
-
         try:
 
-            os.remove(
-                filepath
-            )
+            os.remove(filepath)
 
         except PermissionError:
 
@@ -867,8 +911,7 @@ def cleanup_file(file_id):
 
             "success": False,
 
-            "error":
-                str(e)
+            "error": str(e)
 
         }), 500
 
@@ -891,14 +934,18 @@ if __name__ == "__main__":
     print("YT DOWNLOADER BACKEND")
     print("================================")
     print("Server running on port:", port)
-    print("Download folder:")
     print(
-        os.path.abspath(
-            DOWNLOAD_FOLDER
-        )
+        "Download folder:",
+        os.path.abspath(DOWNLOAD_FOLDER)
     )
-    print("BGUTIL URL:")
-    print(BGUTIL_URL)
+    print(
+        "BGUTIL URL:",
+        BGUTIL_URL
+    )
+    print(
+        "Node.js:",
+        NODE_PATH
+    )
     print("================================")
     print()
 
@@ -907,3 +954,4 @@ if __name__ == "__main__":
         port=port,
         debug=False
     )
+
