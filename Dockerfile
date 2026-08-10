@@ -76,20 +76,4 @@ RUN echo "===== SERVER.PY =====" \
 # START BOTH SERVICES
 # ============================================================
 
-CMD sh -c '\
-    echo "========================================"; \
-    echo "STARTING BGUTIL PO TOKEN SERVER"; \
-    echo "========================================"; \
-    cd /app/bgutil-ytdlp-pot-provider/server; \
-    node build/main.js > /tmp/bgutil.log 2>&1 & \
-    BGUTIL_PID=$!; \
-    echo "BGUTIL PID: $BGUTIL_PID"; \
-    sleep 5; \
-    echo "===== BGUTIL LOG ====="; \
-    cat /tmp/bgutil.log || true; \
-    echo "========================================"; \
-    echo "STARTING GUNICORN"; \
-    echo "========================================"; \
-    cd /app; \
-    exec gunicorn --bind 0.0.0.0:${PORT:-10000} server:app \
-'
+CMD ["sh", "-c", "cd /app/bgutil-ytdlp-pot-provider/server && npm start > /tmp/bgutil.log 2>&1 & BGUTIL_PID=$!; echo BGUTIL_PID=$BGUTIL_PID; sleep 8; echo '===== BGUTIL LOG ====='; cat /tmp/bgutil.log; echo '===== END BGUTIL LOG ====='; echo '===== STARTING GUNICORN ====='; exec gunicorn --chdir /app --bind 0.0.0.0:${PORT:-10000} server:app"]
