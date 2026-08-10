@@ -5,7 +5,11 @@ import os
 import uuid
 
 app = Flask(__name__)
-
+print("========================================")
+print("YT DOWNLOADER SERVER STARTED")
+print("BGUTIL PATH:")
+print("/app/bgutil-ytdlp-pot-provider/server")
+print("========================================", flush=True)
 DOWNLOAD_FOLDER = "downloads"
 
 os.makedirs(
@@ -93,6 +97,15 @@ def get_info():
         print("================================")
         print("INFO REQUEST")
         print("URL:", url)
+        print("YT-DLP VERSION:", yt_dlp.version.__version__, flush=True)
+        print("BGUTIL DIRECTORY EXISTS:",os.path.exists("/app/bgutil-ytdlp-pot-provider/server"),
+        flush=True
+        )
+        print("BGUTIL DIRECTORY CONTENTS:",os.listdir("/app/bgutil-ytdlp-pot-provider/server")
+        if os.path.exists("/app/bgutil-ytdlp-pot-provider/server")
+        else "DIRECTORY NOT FOUND",
+        flush=True
+        )
         print("================================")
 
         options = get_ytdlp_options({
