@@ -2,1079 +2,349 @@ from flask import Flask, request, jsonify, send_file
 import yt_dlp
 import os
 import uuid
-import requests
-import threading
-import subprocess
-import time
-import base64
-
-# ============================================================
-
-# FLASK APPLICATION
-
-# ============================================================
 
 app = Flask(__name__)
 
-# ============================================================
+DOWNLOAD_FOLDER = "downloads"
 
-# CONFIGURATION
-
-# ============================================================
-
-DOWNLOAD_FOLDER = "/app/downloads"
-
-BGUTIL_URL = "http://127.0.0.1:4416"
-
-BGUTIL_SERVER_DIRECTORY = (
-"/app/bgutil-ytdlp-pot-provider/server"
-)
-
-NODE_PATH = "/usr/bin/node"
-
-COOKIE_FILE = "/app/secrets/youtube-cookies.txt"
-
-os.makedirs(
-DOWNLOAD_FOLDER,
-exist_ok=True
-)
-
-os.makedirs(
-"/app/secrets",
-exist_ok=True
-)
-
-# ============================================================
-
-# COOKIE SETUP
-
-# ============================================================
-
-def setup_cookies():
-"""
-Creates the YouTube cookie file from the optional
-YOUTUBE_COOKIES_B64 environment variable.
-
-
-The cookie file is NEVER stored in the repository.
-"""
-
-cookies_b64 = os.environ.get(
-    "YOUTUBE_COOKIES_B64",
-    ""
-).strip()
-
-if not cookies_b64:
-    print("YOUTUBE_COOKIES_B64 is not configured")
-    return False
-
-try:
-    cookie_data = base64.b64decode(
-        cookies_b64
-    )
-
-    with open(
-        COOKIE_FILE,
-        "wb"
-    ) as f:
-
-        f.write(cookie_data)
-
-    print(
-        "YouTube cookie file created:"
-    )
-
-    print(
-        COOKIE_FILE
-    )
-
-    return True
-
-except Exception as e:
-
-    print(
-        "FAILED TO CREATE COOKIE FILE:"
-    )
-
-    print(
-        str(e)
-    )
-
-    return False
+os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
 
 # ============================================================
-
-# COOKIE STATUS
-
+# GET VIDEO INFORMATION
 # ============================================================
 
-def cookies_available():
-
-
-return (
-    os.path.isfile(
-        COOKIE_FILE
-    )
-    and
-    os.path.getsize(
-        COOKIE_FILE
-    ) > 0
-)
-
-
-# ============================================================
-
-# BGUTIL PROCESS
-
-# ============================================================
-
-bgutil_process = None
-
-def start_bgutil():
-
-
-global bgutil_process
-
-print()
-print("================================")
-print("STARTING BGUTIL PO TOKEN SERVER")
-print("================================")
-
-if not os.path.isdir(
-    BGUTIL_SERVER_DIRECTORY
-):
-
-    print(
-        "BGUTIL DIRECTORY NOT FOUND:",
-        BGUTIL_SERVER_DIRECTORY
-    )
-
-    return False
-
-build_file = os.path.join(
-    BGUTIL_SERVER_DIRECTORY,
-    "build",
-    "main.js"
-)
-
-if not os.path.isfile(
-    build_file
-):
-
-    print(
-        "BGUTIL BUILD FILE NOT FOUND:",
-        build_file
-    )
-
-    return False
-
-try:
-
-    bgutil_process = subprocess.Popen(
-
-        [
-            NODE_PATH,
-            build_file
-        ],
-
-        cwd=BGUTIL_SERVER_DIRECTORY,
-
-        stdout=subprocess.PIPE,
-
-        stderr=subprocess.STDOUT,
-
-        text=True,
-
-        bufsize=1
-    )
-
-    print(
-        "BGUTIL PROCESS STARTED"
-    )
-
-    print(
-        "BGUTIL PID:",
-        bgutil_process.pid
-    )
-
-    def read_bgutil_output():
-
-        if not bgutil_process.stdout:
-            return
-
-        for line in bgutil_process.stdout:
-
-            print(
-                "[BGUTIL]",
-                line.rstrip()
-            )
-
-    threading.Thread(
-        target=read_bgutil_output,
-        daemon=True
-    ).start()
-
-    return True
-
-except Exception as e:
-
-    print(
-        "BGUTIL START ERROR:",
-        str(e)
-    )
-
-    return False
-
-
-# ============================================================
-
-# CHECK BGUTIL
-
-# ============================================================
-
-def check_bgutil():
-
-
-try:
-
-    response = requests.get(
-        BGUTIL_URL,
-        timeout=5
-    )
-
-    print(
-        "BGUTIL HTTP STATUS:",
-        response.status_code
-    )
-
-    print(
-        "BGUTIL HTTP SERVER: REACHABLE"
-    )
-
-    return True
-
-except Exception as e:
-
-    print(
-        "BGUTIL HTTP SERVER: NOT REACHABLE"
-    )
-
-    print(
-        "BGUTIL ERROR:",
-        str(e)
-    )
-
-    return False
-
-
-# ============================================================
-
-# INITIALIZE BGUTIL
-
-# ============================================================
-
-def initialize_bgutil():
-
-
-started = start_bgutil()
-
-if not started:
-
-    print(
-        "BGUTIL FAILED TO START"
-    )
-
-    return
-
-print(
-    "WAITING FOR BGUTIL..."
-)
-
-for attempt in range(15):
-
-    time.sleep(1)
-
-    print(
-        "BGUTIL CHECK",
-        attempt + 1,
-        "/ 15"
-    )
-
-    if check_bgutil():
-
-        print(
-            "================================"
-        )
-
-        print(
-            "BGUTIL IS READY"
-        )
-
-        print(
-            "================================"
-        )
-
-        return
-
-print(
-    "================================"
-)
-
-print(
-    "BGUTIL DID NOT BECOME READY"
-)
-
-print(
-    "================================"
-)
-
-
-# ============================================================
-
-# START BACKGROUND SERVICES
-
-# ============================================================
-
-setup_cookies()
-
-bgutil_thread = threading.Thread(
-target=initialize_bgutil,
-daemon=True
-)
-
-bgutil_thread.start()
-
-# ============================================================
-
-# YT-DLP OPTIONS
-
-# ============================================================
-
-def create_yt_dlp_options(
-skip_download=True
-):
-
-
-options = {
-
-    # ----------------------------------------------------
-    # GENERAL
-    # ----------------------------------------------------
-
-    "quiet": False,
-
-    "no_warnings": False,
-
-    "verbose": True,
-
-    "skip_download":
-        skip_download,
-
-    "noplaylist":
-        True,
-
-    # ----------------------------------------------------
-    # COOKIE AUTHENTICATION
-    # ----------------------------------------------------
-
-    "cookiefile":
-        COOKIE_FILE
-        if cookies_available()
-        else None,
-
-    # ----------------------------------------------------
-    # NODE.JS
-    # ----------------------------------------------------
-
-    "js_runtimes": {
-
-        "node": {
-
-            "path":
-                NODE_PATH
-
-        }
-
-    },
-
-    # ----------------------------------------------------
-    # BGUTIL
-    # ----------------------------------------------------
-
-    "extractor_args": {
-
-        "youtubepot-bgutilhttp": {
-
-            "base_url":
-                BGUTIL_URL
-
-        }
-
-    },
-
-    # ----------------------------------------------------
-    # HTTP HEADERS
-    # ----------------------------------------------------
-
-    "http_headers": {
-
-        "User-Agent": (
-            "Mozilla/5.0 "
-            "(Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 "
-            "(KHTML, like Gecko) "
-            "Chrome/151.0.0.0 "
-            "Safari/537.36"
-        ),
-
-        "Accept": (
-            "text/html,"
-            "application/xhtml+xml,"
-            "application/xml;q=0.9,"
-            "*/*;q=0.8"
-        ),
-
-        "Accept-Language":
-            "en-US,en;q=0.9"
-
-    },
-
-    # ----------------------------------------------------
-    # RETRIES
-    # ----------------------------------------------------
-
-    "retries":
-        3,
-
-    "fragment_retries":
-        3,
-
-    # ----------------------------------------------------
-    # FILESYSTEM
-    # ----------------------------------------------------
-
-    "restrictfilenames":
-        False
-
-}
-
-return options
-
-
-# ============================================================
-
-# HOME
-
-# ============================================================
-
-@app.route(
-"/",
-methods=["GET"]
-)
-def home():
-
-
-return jsonify({
-
-    "success":
-        True,
-
-    "server":
-        "running",
-
-    "yt_dlp_version":
-        yt_dlp.version.__version__,
-
-    "bgutil":
-        check_bgutil(),
-
-    "cookies_configured":
-        cookies_available()
-
-})
-
-
-# ============================================================
-
-# HEALTH
-
-# ============================================================
-
-@app.route(
-"/health",
-methods=["GET"]
-)
-def health():
-
-
-return jsonify({
-
-    "success":
-        True,
-
-    "server":
-        "running",
-
-    "bgutil":
-        check_bgutil(),
-
-    "cookies":
-        cookies_available(),
-
-    "yt_dlp_version":
-        yt_dlp.version.__version__
-
-})
-
-
-# ============================================================
-
-# INFO
-
-# ============================================================
-
-@app.route(
-"/info",
-methods=["POST"]
-)
+@app.route("/info", methods=["POST"])
 def get_info():
 
+    try:
 
-try:
+        data = request.get_json(silent=True)
 
-    data = request.get_json(
-        silent=True
-    )
+        if not data:
 
-    if not data:
+            return jsonify({
+                "success": False,
+                "error": "Invalid JSON request"
+            }), 400
 
-        return jsonify({
+        url = data.get(
+            "url",
+            ""
+        ).strip()
 
-            "success":
-                False,
+        if not url:
 
-            "error":
-                "Invalid JSON request"
+            return jsonify({
+                "success": False,
+                "error": "URL is required"
+            }), 400
 
-        }), 400
+        print()
+        print("================================")
+        print("INFO REQUEST")
+        print("URL:", url)
+        print("================================")
 
-    url = data.get(
-        "url",
-        ""
-    ).strip()
+        options = {
 
-    if not url:
+            "quiet": True,
 
-        return jsonify({
+            "no_warnings": True,
 
-            "success":
-                False,
+            "skip_download": True
 
-            "error":
-                "URL is required"
+        }
 
-        }), 400
+        with yt_dlp.YoutubeDL(
+                options) as ydl:
 
-    print()
-    print("================================")
-    print("INFO REQUEST")
-    print("================================")
-
-    print(
-        "URL:",
-        url
-    )
-
-    print(
-        "YT-DLP:",
-        yt_dlp.version.__version__
-    )
-
-    print(
-        "BGUTIL:",
-        check_bgutil()
-    )
-
-    print(
-        "COOKIES:",
-        cookies_available()
-    )
-
-    options = create_yt_dlp_options(
-        skip_download=True
-    )
-
-    with yt_dlp.YoutubeDL(
-        options
-    ) as ydl:
-
-        info = ydl.extract_info(
-            url,
-            download=False
-        )
-
-    # ----------------------------------------------------
-    # BASIC INFO
-    # ----------------------------------------------------
-
-    title = info.get(
-        "title",
-        "Unknown title"
-    )
-
-    thumbnail = info.get(
-        "thumbnail",
-        ""
-    )
-
-    duration_seconds = info.get(
-        "duration",
-        0
-    )
-
-    if duration_seconds:
-
-        minutes = int(
-            duration_seconds // 60
-        )
-
-        seconds = int(
-            duration_seconds % 60
-        )
-
-        duration = (
-            f"{minutes:02d}:"
-            f"{seconds:02d}"
-        )
-
-    else:
-
-        duration = "Unknown"
-
-    # ----------------------------------------------------
-    # VIDEO FORMATS
-    # ----------------------------------------------------
-
-    formats = info.get(
-        "formats",
-        []
-    )
-
-    qualities = []
-
-    for fmt in formats:
-
-        format_id = fmt.get(
-            "format_id"
-        )
-
-        height = fmt.get(
-            "height"
-        )
-
-        extension = fmt.get(
-            "ext"
-        )
-
-        vcodec = fmt.get(
-            "vcodec"
-        )
-
-        if not format_id:
-            continue
-
-        if not height:
-            continue
-
-        if not vcodec:
-            continue
-
-        try:
-
-            height = int(
-                height
+            info = ydl.extract_info(
+                url,
+                download=False
             )
 
-        except (
-            TypeError,
-            ValueError
-        ):
+        # ----------------------------------------------------
+        # Basic information
+        # ----------------------------------------------------
 
-            continue
+        title = info.get(
+            "title",
+            "Unknown title"
+        )
 
-        qualities.append({
+        thumbnail = info.get(
+            "thumbnail",
+            ""
+        )
 
-            "format_id":
-                str(format_id),
+        duration_seconds = info.get(
+            "duration",
+            0
+        )
 
-            "height":
-                height,
+        if duration_seconds:
 
-            "ext":
-                extension or ""
+            minutes = int(
+                duration_seconds // 60
+            )
+
+            seconds = int(
+                duration_seconds % 60
+            )
+
+            duration = (
+                f"{minutes:02d}:{seconds:02d}"
+            )
+
+        else:
+
+            duration = "Unknown"
+
+        # ----------------------------------------------------
+        # Get available formats
+        # ----------------------------------------------------
+
+        formats = info.get(
+            "formats",
+            []
+        )
+
+        qualities = []
+
+        for fmt in formats:
+
+            format_id = fmt.get(
+                "format_id"
+            )
+
+            height = fmt.get(
+                "height"
+            )
+
+            extension = fmt.get(
+                "ext"
+            )
+
+            if not format_id:
+                continue
+
+            if not height:
+                continue
+
+            qualities.append({
+
+                "format_id": str(
+                    format_id
+                ),
+
+                "height": int(
+                    height
+                ),
+
+                "ext": extension or ""
+
+            })
+
+        # ----------------------------------------------------
+        # Remove duplicate resolutions
+        # ----------------------------------------------------
+
+        unique_qualities = {}
+
+        for quality in qualities:
+
+            height = quality["height"]
+
+            if height not in unique_qualities:
+
+                unique_qualities[
+                    height
+                ] = quality
+
+        qualities = list(
+            unique_qualities.values()
+        )
+
+        # ----------------------------------------------------
+        # Sort from lowest to highest
+        # ----------------------------------------------------
+
+        qualities.sort(
+            key=lambda x: x["height"]
+        )
+
+        print(
+            "Found",
+            len(qualities),
+            "qualities"
+        )
+
+        return jsonify({
+
+            "success": True,
+
+            "title": title,
+
+            "thumbnail": thumbnail,
+
+            "duration": duration,
+
+            "qualities": qualities
 
         })
 
-    # ----------------------------------------------------
-    # ONE FORMAT PER RESOLUTION
-    # ----------------------------------------------------
+    except Exception as e:
 
-    unique = {}
-
-    for quality in qualities:
-
-        height = quality[
-            "height"
-        ]
-
-        if height not in unique:
-
-            unique[
-                height
-            ] = quality
-
-    qualities = list(
-        unique.values()
-    )
-
-    qualities.sort(
-        key=lambda x:
-            x["height"]
-    )
-
-    print(
-        "TITLE:",
-        title
-    )
-
-    print(
-        "DURATION:",
-        duration
-    )
-
-    print(
-        "VIDEO QUALITIES:",
-        len(qualities)
-    )
-
-    return jsonify({
-
-        "success":
-            True,
-
-        "title":
-            title,
-
-        "thumbnail":
-            thumbnail,
-
-        "duration":
-            duration,
-
-        "qualities":
-            qualities
-
-    })
-
-except Exception as e:
-
-    print()
-    print("================================")
-    print("INFO ERROR")
-    print("================================")
-    print(
-        str(e)
-    )
-    print("================================")
-
-    return jsonify({
-
-        "success":
-            False,
-
-        "error":
-            str(e)
-
-    }), 500
-
-
-# ============================================================
-
-# DOWNLOAD
-
-# ============================================================
-
-@app.route(
-"/download",
-methods=["POST"]
-)
-def download():
-
-
-file_id = None
-
-try:
-
-    data = request.get_json(
-        silent=True
-    )
-
-    if not data:
+        print()
+        print("================================")
+        print("INFO ERROR")
+        print("================================")
+        print(str(e))
+        print("================================")
+        print()
 
         return jsonify({
 
-            "success":
-                False,
+            "success": False,
 
-            "error":
-                "Invalid JSON request"
-
-        }), 400
-
-    url = data.get(
-        "url",
-        ""
-    ).strip()
-
-    format_id = str(
-        data.get(
-            "format_id",
-            ""
-        )
-    ).strip()
-
-    if not url:
-
-        return jsonify({
-
-            "success":
-                False,
-
-            "error":
-                "URL is required"
-
-        }), 400
-
-    if not format_id:
-
-        return jsonify({
-
-            "success":
-                False,
-
-            "error":
-                "Format is required"
-
-        }), 400
-
-    # ----------------------------------------------------
-    # AUTHENTICATION REQUIREMENT
-    # ----------------------------------------------------
-
-    if not cookies_available():
-
-        return jsonify({
-
-            "success":
-                False,
-
-            "error":
-                "Authenticated YouTube cookie file is not configured"
-
-        }), 503
-
-    # ----------------------------------------------------
-    # FILE ID
-    # ----------------------------------------------------
-
-    file_id = str(
-        uuid.uuid4()
-    )
-
-    output_template = os.path.join(
-
-        DOWNLOAD_FOLDER,
-
-        file_id +
-        ".%(ext)s"
-
-    )
-
-    print()
-    print("================================")
-    print("STARTING AUTHENTICATED DOWNLOAD")
-    print("================================")
-
-    print(
-        "URL:",
-        url
-    )
-
-    print(
-        "FORMAT:",
-        format_id
-    )
-
-    print(
-        "FILE ID:",
-        file_id
-    )
-
-    print(
-        "COOKIES:",
-        True
-    )
-
-    print(
-        "BGUTIL:",
-        check_bgutil()
-    )
-
-    print("================================")
-
-    # ----------------------------------------------------
-    # OPTIONS
-    # ----------------------------------------------------
-
-    ydl_opts = create_yt_dlp_options(
-        skip_download=False
-    )
-
-    ydl_opts.update({
-
-        "format": (
-            f"{format_id}+bestaudio/"
-            f"{format_id}/"
-            f"bestvideo+bestaudio/"
-            f"best"
-        ),
-
-        "outtmpl":
-            output_template,
-
-        "merge_output_format":
-            "mp4"
-
-    })
-
-    # ----------------------------------------------------
-    # DOWNLOAD
-    # ----------------------------------------------------
-
-    print(
-        "STARTING YT-DLP DOWNLOAD"
-    )
-
-    with yt_dlp.YoutubeDL(
-        ydl_opts
-    ) as ydl:
-
-        ydl.extract_info(
-            url,
-            download=True
-        )
-
-    # ----------------------------------------------------
-    # FIND FILE
-    # ----------------------------------------------------
-
-    downloaded_file = None
-
-    for filename in os.listdir(
-        DOWNLOAD_FOLDER
-    ):
-
-        if not filename.startswith(
-            file_id
-        ):
-
-            continue
-
-        filepath = os.path.join(
-            DOWNLOAD_FOLDER,
-            filename
-        )
-
-        if os.path.isfile(
-            filepath
-        ):
-
-            downloaded_file = filepath
-
-            break
-
-    if not downloaded_file:
-
-        return jsonify({
-
-            "success":
-                False,
-
-            "error":
-                "Download completed but output file was not found"
+            "error": str(e)
 
         }), 500
 
-    filename = os.path.basename(
-        downloaded_file
-    )
 
-    print()
-    print("================================")
-    print("DOWNLOAD COMPLETE")
-    print("================================")
+# ============================================================
+# DOWNLOAD VIDEO
+# ============================================================
 
-    print(
-        "FILE:",
-        filename
-    )
+@app.route("/download", methods=["POST"])
+def download():
 
-    print("================================")
+    file_id = None
 
-    return jsonify({
+    try:
 
-        "success":
-            True,
+        data = request.get_json(
+            silent=True
+        )
 
-        "file_id":
-            file_id,
+        if not data:
 
-        "filename":
-            filename
+            return jsonify({
 
-    })
+                "success": False,
 
-except Exception as e:
+                "error":
+                    "Invalid JSON request"
 
-    print()
-    print("================================")
-    print("DOWNLOAD ERROR")
-    print("================================")
+            }), 400
 
-    print(
-        str(e)
-    )
+        url = data.get(
+            "url",
+            ""
+        ).strip()
 
-    print("================================")
+        format_id = str(
+            data.get(
+                "format_id",
+                ""
+            )
+        ).strip()
 
-    # ----------------------------------------------------
-    # CLEANUP
-    # ----------------------------------------------------
+        if not url:
 
-    if file_id:
+            return jsonify({
 
-        try:
+                "success": False,
 
-            for filename in os.listdir(
-                DOWNLOAD_FOLDER
-            ):
+                "error":
+                    "URL is required"
 
-                if not filename.startswith(
+            }), 400
+
+        if not format_id:
+
+            return jsonify({
+
+                "success": False,
+
+                "error":
+                    "Format is required"
+
+            }), 400
+
+        # ----------------------------------------------------
+        # Create unique file ID
+        # ----------------------------------------------------
+
+        file_id = str(
+            uuid.uuid4()
+        )
+
+        output_template = os.path.join(
+            DOWNLOAD_FOLDER,
+            file_id + ".%(ext)s"
+        )
+
+        print()
+        print("================================")
+        print("STARTING DOWNLOAD")
+        print("================================")
+        print("URL:", url)
+        print("Format:", format_id)
+        print("File ID:", file_id)
+        print("================================")
+        print()
+
+        # ----------------------------------------------------
+        # yt-dlp options
+        # ----------------------------------------------------
+
+        ydl_opts = {
+
+            "format": (
+                f"{format_id}+bestaudio/"
+                f"{format_id}"
+            ),
+
+            "outtmpl":
+                output_template,
+
+            "merge_output_format":
+                "mp4",
+
+            "quiet":
+                False,
+
+            "no_warnings":
+                False
+
+        }
+
+        # ----------------------------------------------------
+        # Download
+        # ----------------------------------------------------
+
+        with yt_dlp.YoutubeDL(
+                ydl_opts) as ydl:
+
+            ydl.extract_info(
+                url,
+                download=True
+            )
+
+        # ----------------------------------------------------
+        # Find downloaded file
+        # ----------------------------------------------------
+
+        downloaded_file = None
+
+        for filename in os.listdir(
+                DOWNLOAD_FOLDER):
+
+            if filename.startswith(
                     file_id
-                ):
-
-                    continue
+            ):
 
                 filepath = os.path.join(
                     DOWNLOAD_FOLDER,
@@ -1082,152 +352,267 @@ except Exception as e:
                 )
 
                 if os.path.isfile(
-                    filepath
+                        filepath
                 ):
 
-                    try:
+                    downloaded_file = filepath
 
-                        os.remove(
-                            filepath
-                        )
+                    break
 
-                    except Exception:
+        # ----------------------------------------------------
+        # File not found
+        # ----------------------------------------------------
 
-                        pass
+        if not downloaded_file:
 
-        except Exception:
+            return jsonify({
 
-            pass
+                "success": False,
 
-    return jsonify({
+                "error":
+                    "Download completed but file was not found"
 
-        "success":
-            False,
+            }), 500
 
-        "error":
-            str(e)
+        # ----------------------------------------------------
+        # Get filename
+        # ----------------------------------------------------
 
-    }), 500
-
-
-# ============================================================
-
-# SEND FILE
-
-# ============================================================
-
-@app.route(
-"/file/<file_id>",
-methods=["GET"]
-)
-def get_file(file_id):
-
-
-try:
-
-    filepath = None
-
-    for filename in os.listdir(
-        DOWNLOAD_FOLDER
-    ):
-
-        if not filename.startswith(
-            file_id
-        ):
-
-            continue
-
-        possible_path = os.path.join(
-            DOWNLOAD_FOLDER,
-            filename
+        filename = os.path.basename(
+            downloaded_file
         )
 
-        if os.path.isfile(
-            possible_path
-        ):
-
-            filepath = possible_path
-
-            break
-
-    if not filepath:
+        print()
+        print("================================")
+        print("DOWNLOAD COMPLETE")
+        print("================================")
+        print("File:", filename)
+        print("================================")
+        print()
 
         return jsonify({
 
-            "success":
-                False,
+            "success": True,
+
+            "file_id":
+                file_id,
+
+            "filename":
+                filename
+
+        })
+
+    except Exception as e:
+
+        print()
+        print("================================")
+        print("DOWNLOAD ERROR")
+        print("================================")
+        print(str(e))
+        print("================================")
+        print()
+
+        # ----------------------------------------------------
+        # Delete partial files
+        # ----------------------------------------------------
+
+        if file_id:
+
+            try:
+
+                for filename in os.listdir(
+                        DOWNLOAD_FOLDER):
+
+                    if filename.startswith(
+                            file_id
+                    ):
+
+                        filepath = os.path.join(
+                            DOWNLOAD_FOLDER,
+                            filename
+                        )
+
+                        if os.path.isfile(
+                                filepath
+                        ):
+
+                            try:
+
+                                os.remove(
+                                    filepath
+                                )
+
+                                print(
+                                    "Deleted partial file:",
+                                    filepath
+                                )
+
+                            except Exception as cleanup_error:
+
+                                print(
+                                    "Could not delete:",
+                                    filepath
+                                )
+
+                                print(
+                                    cleanup_error
+                                )
+
+            except Exception as cleanup_error:
+
+                print(
+                    "Partial-file cleanup error:",
+                    cleanup_error
+                )
+
+        return jsonify({
+
+            "success": False,
 
             "error":
-                "File not found"
+                str(e)
 
-        }), 404
-
-    return send_file(
-
-        filepath,
-
-        as_attachment=True,
-
-        download_name=
-            os.path.basename(
-                filepath
-            ),
-
-        mimetype=
-            "video/mp4"
-
-    )
-
-except Exception as e:
-
-    return jsonify({
-
-        "success":
-            False,
-
-        "error":
-            str(e)
-
-    }), 500
+        }), 500
 
 
 # ============================================================
+# SEND FILE TO ANDROID
+# ============================================================
 
-# CLEANUP
+@app.route("/file/<file_id>", methods=["GET"])
+def get_file(file_id):
 
+    try:
+
+        filepath = None
+
+        for filename in os.listdir(
+                DOWNLOAD_FOLDER):
+
+            if filename.startswith(
+                    file_id
+            ):
+
+                possible_path = os.path.join(
+                    DOWNLOAD_FOLDER,
+                    filename
+                )
+
+                if os.path.isfile(
+                        possible_path
+                ):
+
+                    filepath = possible_path
+
+                    break
+
+        if not filepath:
+
+            return jsonify({
+
+                "success": False,
+
+                "error":
+                    "File not found"
+
+            }), 404
+
+        print()
+        print("================================")
+        print("SENDING FILE")
+        print("================================")
+        print(filepath)
+        print("================================")
+        print()
+
+        return send_file(
+
+            filepath,
+
+            as_attachment=True,
+
+            download_name=
+                os.path.basename(
+                    filepath
+                ),
+
+            mimetype=
+                "video/mp4"
+
+        )
+
+    except Exception as e:
+
+        print()
+        print("================================")
+        print("FILE ERROR")
+        print("================================")
+        print(str(e))
+        print("================================")
+        print()
+
+        return jsonify({
+
+            "success": False,
+
+            "error":
+                str(e)
+
+        }), 500
+
+
+# ============================================================
+# CLEANUP TEMPORARY FILE
 # ============================================================
 
 @app.route(
-"/cleanup/<file_id>",
-methods=["DELETE"]
+    "/cleanup/<file_id>",
+    methods=["DELETE"]
 )
 def cleanup_file(file_id):
 
+    try:
 
-try:
+        filepath = None
 
-    deleted = False
+        for filename in os.listdir(
+                DOWNLOAD_FOLDER):
 
-    for filename in os.listdir(
-        DOWNLOAD_FOLDER
-    ):
+            if filename.startswith(
+                    file_id
+            ):
 
-        if not filename.startswith(
-            file_id
-        ):
+                possible_path = os.path.join(
+                    DOWNLOAD_FOLDER,
+                    filename
+                )
 
-            continue
+                if os.path.isfile(
+                        possible_path
+                ):
 
-        filepath = os.path.join(
-            DOWNLOAD_FOLDER,
-            filename
-        )
+                    filepath = possible_path
 
-        if not os.path.isfile(
-            filepath
-        ):
+                    break
 
-            continue
+        # ----------------------------------------------------
+        # Already deleted
+        # ----------------------------------------------------
+
+        if not filepath:
+
+            return jsonify({
+
+                "success": True,
+
+                "message":
+                    "File already deleted"
+
+            })
+
+        # ----------------------------------------------------
+        # Try deleting
+        # ----------------------------------------------------
 
         try:
 
@@ -1235,96 +620,80 @@ try:
                 filepath
             )
 
-            deleted = True
-
         except PermissionError:
 
             return jsonify({
 
-                "success":
-                    False,
+                "success": False,
 
                 "error":
                     "File is still being used"
 
             }), 409
 
-    return jsonify({
+        print()
+        print("================================")
+        print("TEMPORARY FILE DELETED")
+        print("================================")
+        print(filepath)
+        print("================================")
+        print()
 
-        "success":
-            True,
+        return jsonify({
 
-        "message":
-            "File deleted"
-            if deleted
-            else
-            "File already deleted"
+            "success": True,
 
-    })
+            "message":
+                "File deleted successfully"
 
-except Exception as e:
+        })
 
-    return jsonify({
+    except Exception as e:
 
-        "success":
-            False,
+        print()
+        print("================================")
+        print("CLEANUP ERROR")
+        print("================================")
+        print(str(e))
+        print("================================")
+        print()
 
-        "error":
-            str(e)
+        return jsonify({
 
-    }), 500
+            "success": False,
+
+            "error":
+                str(e)
+
+        }), 500
 
 
 # ============================================================
-
 # START SERVER
-
 # ============================================================
 
 if __name__ == "__main__":
 
-
-port = int(
-    os.environ.get(
-        "PORT",
-        "5000"
+    print()
+    print("================================")
+    print("YT DOWNLOADER BACKEND")
+    print("================================")
+    print("Server running on port 5000")
+    print("Download folder:")
+    print(
+        os.path.abspath(
+            DOWNLOAD_FOLDER
+        )
     )
-)
+    print("================================")
+    print()
 
-print()
-print("================================")
-print("YT DOWNLOADER BACKEND")
-print("================================")
+    app.run(
 
-print(
-    "PORT:",
-    port
-)
+        host="0.0.0.0",
 
-print(
-    "YT-DLP:",
-    yt_dlp.version.__version__
-)
+        port=5000,
 
-print(
-    "BGUTIL:",
-    BGUTIL_URL
-)
+        debug=True
 
-print(
-    "COOKIES:",
-    cookies_available()
-)
-
-print("================================")
-
-app.run(
-
-    host="0.0.0.0",
-
-    port=port,
-
-    debug=False
-
-)
-
+    )
