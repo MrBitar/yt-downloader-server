@@ -96,16 +96,10 @@ def get_info():
         print("================================")
 
         options = get_ytdlp_options({
-
-            "quiet":
-                True,
-
-            "no_warnings":
-                True,
-
-            "skip_download":
-                True
-
+            "quiet": False,
+            "no_warnings": False,
+            "verbose": True,
+            "skip_download": True
         })
 
         with yt_dlp.YoutubeDL(
