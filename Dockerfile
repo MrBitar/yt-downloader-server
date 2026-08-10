@@ -1,5 +1,6 @@
 FROM python:3.12-slim
 
+# System dependencies
 RUN apt-get update \
     && apt-get install -y \
         ffmpeg \
@@ -14,29 +15,35 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && node --version \
     && npm --version
 
+# Application directory
 WORKDIR /app
 
-COPY requirements.txt .
+# Python dependencies
+COPY requirements.txt /app/requirements.txt
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
 # Install bgutil
 RUN git clone \
-        --single-branch \
-        --branch 1.3.1 \
-        https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git \
-        /app/bgutil-ytdlp-pot-provider
+    --single-branch \
+    --branch 1.3.1 \
+    https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git \
+    /app/bgutil-ytdlp-pot-provider
 
 # Build bgutil
 RUN cd /app/bgutil-ytdlp-pot-provider/server \
     && npm ci \
     && npx tsc
 
-COPY server.py .
-COPY start.sh .
+# IMPORTANT:
+# Copy server.py into /app
+COPY server.py /app/server.py
 
-RUN chmod +x start.sh
+# Create downloads directory
+RUN mkdir -p /app/downloads
 
-RUN mkdir -p downloads
+# Verify server.py exists during Docker build
+RUN ls -la /app/server.py
 
-CMD ["/app/start.sh"]
+# Start Gunicorn
+CMD ["gunicorn", "--bind", "0.0.0.0:10000", "server:app"]
