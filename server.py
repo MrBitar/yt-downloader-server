@@ -1,15 +1,11 @@
-
+```python
 from flask import Flask, request, jsonify, send_file
 import yt_dlp
 import os
 import uuid
 
 app = Flask(__name__)
-print("========================================")
-print("YT DOWNLOADER SERVER STARTED")
-print("BGUTIL PATH:")
-print("/app/bgutil-ytdlp-pot-provider/server")
-print("========================================", flush=True)
+
 DOWNLOAD_FOLDER = "downloads"
 
 os.makedirs(
@@ -28,11 +24,25 @@ BGUTIL_SERVER_HOME = (
 
 def get_ytdlp_options(extra_options=None):
     """
-    Create common yt-dlp options with the bgutil
-    PO-token provider configured.
+    Common yt-dlp configuration.
+
+    Enables Node.js for yt-dlp's JavaScript challenges
+    and configures the bgutil PO-token provider.
     """
 
     options = {
+
+        # ----------------------------------------------------
+        # JavaScript runtime
+        # ----------------------------------------------------
+
+        "js_runtimes": {
+            "node": "/usr/bin/node"
+        },
+
+        # ----------------------------------------------------
+        # YouTube PO-token provider
+        # ----------------------------------------------------
 
         "extractor_args": {
 
@@ -97,23 +107,55 @@ def get_info():
         print("================================")
         print("INFO REQUEST")
         print("URL:", url)
-        print("YT-DLP VERSION:", yt_dlp.version.__version__, flush=True)
-        print("BGUTIL DIRECTORY EXISTS:",os.path.exists("/app/bgutil-ytdlp-pot-provider/server"),
-        flush=True
-        )
-        print("BGUTIL DIRECTORY CONTENTS:",os.listdir("/app/bgutil-ytdlp-pot-provider/server")
-        if os.path.exists("/app/bgutil-ytdlp-pot-provider/server")
-        else "DIRECTORY NOT FOUND",
-        flush=True
-        )
-        print("================================")
+        print("================================", flush=True)
+
+        # ----------------------------------------------------
+        # yt-dlp info options
+        # ----------------------------------------------------
 
         options = get_ytdlp_options({
-            "quiet": False,
-            "no_warnings": False,
-            "verbose": True,
-            "skip_download": True
+
+            "quiet":
+                False,
+
+            "no_warnings":
+                False,
+
+            "verbose":
+                True,
+
+            "skip_download":
+                True
+
         })
+
+        print(
+            "YT-DLP VERSION:",
+            yt_dlp.version.__version__,
+            flush=True
+        )
+
+        print(
+            "Node.js path:",
+            "/usr/bin/node",
+            flush=True
+        )
+
+        print(
+            "Node.js exists:",
+            os.path.exists(
+                "/usr/bin/node"
+            ),
+            flush=True
+        )
+
+        print(
+            "BGUTIL directory exists:",
+            os.path.exists(
+                BGUTIL_SERVER_HOME
+            ),
+            flush=True
+        )
 
         with yt_dlp.YoutubeDL(
                 options
@@ -237,7 +279,8 @@ def get_info():
         print(
             "Found",
             len(qualities),
-            "qualities"
+            "qualities",
+            flush=True
         )
 
         return jsonify({
@@ -370,7 +413,7 @@ def download():
         print()
 
         # ----------------------------------------------------
-        # yt-dlp options
+        # yt-dlp download options
         # ----------------------------------------------------
 
         ydl_opts = get_ytdlp_options({
@@ -390,7 +433,10 @@ def download():
                 False,
 
             "no_warnings":
-                False
+                False,
+
+            "verbose":
+                True
 
         })
 
@@ -791,6 +837,10 @@ if __name__ == "__main__":
     print(
         BGUTIL_SERVER_HOME
     )
+    print("Node.js:")
+    print(
+        "/usr/bin/node"
+    )
     print("================================")
     print()
 
@@ -803,3 +853,4 @@ if __name__ == "__main__":
         debug=True
 
     )
+```
