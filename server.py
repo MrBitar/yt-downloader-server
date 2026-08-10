@@ -4,17 +4,12 @@ import yt_dlp
 import os
 import uuid
 import requests
-import threading
-import subprocess
-import time
-
 
 # ============================================================
 # FLASK APPLICATION
 # ============================================================
 
 app = Flask(__name__)
-
 
 # ============================================================
 # CONFIGURATION
@@ -24,149 +19,38 @@ DOWNLOAD_FOLDER = "/app/downloads"
 
 BGUTIL_URL = "http://127.0.0.1:4416"
 
-BGUTIL_SERVER_DIRECTORY = (
-    "/app/bgutil-ytdlp-pot-provider/server"
-)
-
 NODE_PATH = "/usr/bin/node"
-
 
 os.makedirs(
     DOWNLOAD_FOLDER,
     exist_ok=True
 )
 
-
-# ============================================================
-# BGUTIL PROCESS
-# ============================================================
-
-bgutil_process = None
-
-
-def start_bgutil():
-
-    global bgutil_process
-
-    print()
-    print("================================")
-    print("STARTING BGUTIL PO TOKEN SERVER")
-    print("================================")
-
-    if not os.path.isdir(
-        BGUTIL_SERVER_DIRECTORY
-    ):
-
-        print(
-            "BGUTIL SERVER DIRECTORY NOT FOUND:",
-            BGUTIL_SERVER_DIRECTORY
-        )
-
-        return False
-
-    package_json = os.path.join(
-        BGUTIL_SERVER_DIRECTORY,
-        "package.json"
-    )
-
-    if not os.path.isfile(package_json):
-
-        print(
-            "BGUTIL package.json NOT FOUND:",
-            package_json
-        )
-
-        return False
-
-    print(
-        "BGUTIL DIRECTORY:",
-        BGUTIL_SERVER_DIRECTORY
-    )
-
-    try:
-
-        print(
-            "Starting bgutil HTTP server..."
-        )
-
-        bgutil_process = subprocess.Popen(
-            [
-                "npm",
-                "start"
-            ],
-
-            cwd=BGUTIL_SERVER_DIRECTORY,
-
-            stdout=subprocess.PIPE,
-
-            stderr=subprocess.STDOUT,
-
-            text=True,
-
-            bufsize=1
-        )
-
-        print(
-            "BGUTIL PROCESS STARTED"
-        )
-
-        print(
-            "BGUTIL PID:",
-            bgutil_process.pid
-        )
-
-        def read_bgutil_output():
-
-            if not bgutil_process.stdout:
-                return
-
-            for line in bgutil_process.stdout:
-
-                print(
-                    "[BGUTIL]",
-                    line.rstrip()
-                )
-
-        output_thread = threading.Thread(
-            target=read_bgutil_output,
-            daemon=True
-        )
-
-        output_thread.start()
-
-        return True
-
-    except Exception as e:
-
-        print(
-            "BGUTIL START ERROR:",
-            str(e)
-        )
-
-        return False
-
-
 # ============================================================
 # CHECK BGUTIL
+#
+# BGUTIL is started by the Dockerfile with:
+#
+# node build/main.js
+#
+# DO NOT START BGUTIL FROM PYTHON.
 # ============================================================
 
 def check_bgutil():
 
     try:
 
-        ping_url = (
-            BGUTIL_URL +
-            "/ping"
-        )
-
+        # The BGUTIL server does not necessarily expose
+        # /ping, so a 404 still proves that the HTTP server
+        # itself is alive and reachable.
         response = requests.get(
-            ping_url,
+            BGUTIL_URL,
             timeout=5
         )
 
         print(
-            "BGUTIL PING URL:",
-            ping_url
+            "BGUTIL URL:",
+            BGUTIL_URL
         )
 
         print(
@@ -174,26 +58,32 @@ def check_bgutil():
             response.status_code
         )
 
-        if response.status_code == 200:
+        # Any HTTP response means the server is reachable.
+        # 404 is expected for the root URL.
+        if response.status_code in (
+            200,
+            404,
+            405
+        ):
 
             print(
-                "BGUTIL HTTP SERVER: READY"
+                "BGUTIL HTTP SERVER: REACHABLE"
             )
 
             return True
 
         print(
             "BGUTIL HTTP SERVER: REACHABLE "
-            "BUT /ping RETURNED:",
+            "BUT RETURNED:",
             response.status_code
         )
 
         print(
             "BGUTIL RESPONSE:",
-            response.text
+            response.text[:500]
         )
 
-        return False
+        return True
 
     except Exception as e:
 
@@ -207,78 +97,6 @@ def check_bgutil():
         )
 
         return False
-
-
-# ============================================================
-# WAIT FOR BGUTIL
-# ============================================================
-
-def initialize_bgutil():
-
-    started = start_bgutil()
-
-    if not started:
-
-        print(
-            "BGUTIL FAILED TO START"
-        )
-
-        return
-
-    print(
-        "WAITING FOR BGUTIL..."
-    )
-
-    # Give npm/node time to start.
-    for attempt in range(15):
-
-        time.sleep(1)
-
-        print(
-            "BGUTIL CHECK",
-            attempt + 1,
-            "/ 15"
-        )
-
-        if check_bgutil():
-
-            print(
-                "================================"
-            )
-
-            print(
-                "BGUTIL IS READY"
-            )
-
-            print(
-                "================================"
-            )
-
-            return
-
-    print(
-        "================================"
-    )
-
-    print(
-        "BGUTIL DID NOT BECOME READY"
-    )
-
-    print(
-        "================================"
-    )
-
-
-# ============================================================
-# START BGUTIL IN BACKGROUND
-# ============================================================
-
-bgutil_thread = threading.Thread(
-    target=initialize_bgutil,
-    daemon=True
-)
-
-bgutil_thread.start()
 
 
 # ============================================================
@@ -301,7 +119,8 @@ def create_yt_dlp_options(
 
         "verbose": True,
 
-        "skip_download": skip_download,
+        "skip_download":
+            skip_download,
 
         "noplaylist": True,
 
@@ -313,7 +132,8 @@ def create_yt_dlp_options(
 
             "node": {
 
-                "path": NODE_PATH
+                "path":
+                    NODE_PATH
 
             }
 
@@ -327,15 +147,10 @@ def create_yt_dlp_options(
 
             "youtubepot-bgutilhttp": {
 
-                "base_url": BGUTIL_URL
+                "base_url":
+                    BGUTIL_URL
 
             },
-
-            # YouTube client configuration.
-            #
-            # mweb is important for the current
-            # PO-token flow.
-            #
 
             "youtube": {
 
@@ -373,18 +188,16 @@ def create_yt_dlp_options(
                 "*/*;q=0.8"
             ),
 
-            "Accept-Language": (
-                "en-US,en;q=0.9"
-            ),
+            "Accept-Language":
+                "en-US,en;q=0.9",
 
-            "Sec-Fetch-Mode": (
+            "Sec-Fetch-Mode":
                 "navigate"
-            )
 
         },
 
         # ----------------------------------------------------
-        # RETRIES
+        # Retries
         # ----------------------------------------------------
 
         "retries": 3,
@@ -406,6 +219,8 @@ def create_yt_dlp_options(
 )
 def home():
 
+    bgutil_ok = check_bgutil()
+
     return jsonify({
 
         "success": True,
@@ -415,6 +230,9 @@ def home():
 
         "server":
             "running",
+
+        "bgutil":
+            bgutil_ok,
 
         "yt_dlp_version":
             yt_dlp.version.__version__,
@@ -514,7 +332,9 @@ def get_info():
 
         print(
             "Node.js exists:",
-            os.path.exists(NODE_PATH)
+            os.path.exists(
+                NODE_PATH
+            )
         )
 
         print(
@@ -536,7 +356,7 @@ def get_info():
             )
 
         # ----------------------------------------------------
-        # Create yt-dlp options
+        # yt-dlp options
         # ----------------------------------------------------
 
         options = create_yt_dlp_options(
@@ -627,10 +447,25 @@ def get_info():
                 "ext"
             )
 
+            vcodec = fmt.get(
+                "vcodec"
+            )
+
+            # Ignore invalid formats
             if not format_id:
                 continue
 
             if not height:
+                continue
+
+            # Ignore audio-only formats
+            if not vcodec:
+                continue
+
+            # Ignore storyboard / thumbnail formats
+            if str(format_id).startswith(
+                "sb"
+            ):
                 continue
 
             try:
@@ -644,18 +479,6 @@ def get_info():
                 ValueError
             ):
 
-                continue
-
-            # Only expose actual video formats.
-            #
-            # This prevents thumbnail/storyboard formats
-            # such as sb1, sb2, sb3 from being returned.
-
-            vcodec = fmt.get(
-                "vcodec"
-            )
-
-            if not vcodec:
                 continue
 
             qualities.append({
@@ -679,13 +502,33 @@ def get_info():
 
         for quality in qualities:
 
-            height = quality["height"]
+            height = quality[
+                "height"
+            ]
+
+            # Prefer MP4 when several formats
+            # have the same resolution.
 
             if height not in unique_qualities:
 
                 unique_qualities[
                     height
                 ] = quality
+
+            else:
+
+                current = unique_qualities[
+                    height
+                ]
+
+                if (
+                    quality["ext"] == "mp4"
+                    and current["ext"] != "mp4"
+                ):
+
+                    unique_qualities[
+                        height
+                    ] = quality
 
         qualities = list(
             unique_qualities.values()
@@ -721,7 +564,8 @@ def get_info():
 
         return jsonify({
 
-            "success": True,
+            "success":
+                True,
 
             "title":
                 title,
@@ -748,7 +592,8 @@ def get_info():
 
         return jsonify({
 
-            "success": False,
+            "success":
+                False,
 
             "error":
                 str(e)
@@ -778,7 +623,8 @@ def download():
 
             return jsonify({
 
-                "success": False,
+                "success":
+                    False,
 
                 "error":
                     "Invalid JSON request"
@@ -801,7 +647,8 @@ def download():
 
             return jsonify({
 
-                "success": False,
+                "success":
+                    False,
 
                 "error":
                     "URL is required"
@@ -812,7 +659,8 @@ def download():
 
             return jsonify({
 
-                "success": False,
+                "success":
+                    False,
 
                 "error":
                     "Format is required"
@@ -873,12 +721,6 @@ def download():
         # ----------------------------------------------------
         # Format
         # ----------------------------------------------------
-        #
-        # First try the selected video format + audio.
-        #
-        # If that exact combination isn't available,
-        # fall back to best video + best audio.
-        #
 
         ydl_opts.update({
 
@@ -951,7 +793,8 @@ def download():
 
             return jsonify({
 
-                "success": False,
+                "success":
+                    False,
 
                 "error":
                     "Download completed but file was not found"
@@ -976,7 +819,8 @@ def download():
 
         return jsonify({
 
-            "success": True,
+            "success":
+                True,
 
             "file_id":
                 file_id,
@@ -1056,7 +900,8 @@ def download():
 
         return jsonify({
 
-            "success": False,
+            "success":
+                False,
 
             "error":
                 str(e)
@@ -1105,7 +950,8 @@ def get_file(file_id):
 
             return jsonify({
 
-                "success": False,
+                "success":
+                    False,
 
                 "error":
                     "File not found"
@@ -1146,7 +992,8 @@ def get_file(file_id):
 
         return jsonify({
 
-            "success": False,
+            "success":
+                False,
 
             "error":
                 str(e)
@@ -1199,7 +1046,8 @@ def cleanup_file(file_id):
 
             return jsonify({
 
-                "success": True,
+                "success":
+                    True,
 
                 "message":
                     "File already deleted"
@@ -1220,7 +1068,8 @@ def cleanup_file(file_id):
 
             return jsonify({
 
-                "success": False,
+                "success":
+                    False,
 
                 "error":
                     "File is still being used"
@@ -1237,7 +1086,8 @@ def cleanup_file(file_id):
 
         return jsonify({
 
-            "success": True,
+            "success":
+                True,
 
             "message":
                 "File deleted successfully"
@@ -1256,7 +1106,8 @@ def cleanup_file(file_id):
 
         return jsonify({
 
-            "success": False,
+            "success":
+                False,
 
             "error":
                 str(e)
@@ -1289,9 +1140,7 @@ if __name__ == "__main__":
 
     print(
         "DOWNLOAD FOLDER:",
-        os.path.abspath(
-            DOWNLOAD_FOLDER
-        )
+        DOWNLOAD_FOLDER
     )
 
     print(
