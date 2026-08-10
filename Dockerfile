@@ -15,7 +15,6 @@ RUN apt-get update \
 
 # ------------------------------------------------------------
 # Install Node.js 22
-# Required by bgutil PO-token provider
 # ------------------------------------------------------------
 
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
@@ -52,7 +51,7 @@ RUN git clone \
 
 
 # ------------------------------------------------------------
-# Build the provider server
+# Build bgutil HTTP server
 # ------------------------------------------------------------
 
 RUN cd /app/bgutil-ytdlp-pot-provider/server \
@@ -75,26 +74,8 @@ RUN mkdir -p downloads
 
 
 # ------------------------------------------------------------
-# Verify installation
+# Start bgutil + Flask
 # ------------------------------------------------------------
 
-RUN echo "========================================" \
-    && echo "Node version:" \
-    && node --version \
-    && echo "========================================" \
-    && echo "npm version:" \
-    && npm --version \
-    && echo "========================================" \
-    && echo "yt-dlp version:" \
-    && yt-dlp --version \
-    && echo "========================================" \
-    && echo "Python version:" \
-    && python --version \
-    && echo "========================================"
-
-
-# ------------------------------------------------------------
-# Start Flask application with Gunicorn
-# ------------------------------------------------------------
-
-CMD gunicorn --bind 0.0.0.0:$PORT server:app
+CMD node /app/bgutil-ytdlp-pot-provider/server/build/main.js --port 4416 & \
+    gunicorn --bind 0.0.0.0:$PORT server:app
