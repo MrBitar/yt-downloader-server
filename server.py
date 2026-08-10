@@ -9,6 +9,17 @@ DOWNLOAD_FOLDER = "downloads"
 
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
+COOKIE_FILE = "/etc/secrets/cookies.txt"
+
+
+def cookie_options():
+
+    if os.path.exists(COOKIE_FILE):
+
+        return {"cookiefile": COOKIE_FILE}
+
+    return {}
+
 
 # ============================================================
 # GET VIDEO INFORMATION
@@ -52,7 +63,9 @@ def get_info():
 
             "no_warnings": True,
 
-            "skip_download": True
+            "skip_download": True,
+
+            **cookie_options(),
 
         }
 
@@ -317,7 +330,9 @@ def download():
                 False,
 
             "no_warnings":
-                False
+                False,
+
+            **cookie_options(),
 
         }
 
@@ -674,11 +689,13 @@ def cleanup_file(file_id):
 
 if __name__ == "__main__":
 
+    port = int(os.environ.get("PORT", 5000))
+
     print()
     print("================================")
     print("YT DOWNLOADER BACKEND")
     print("================================")
-    print("Server running on port 5000")
+    print("Server running on port", port)
     print("Download folder:")
     print(
         os.path.abspath(
@@ -692,8 +709,8 @@ if __name__ == "__main__":
 
         host="0.0.0.0",
 
-        port=5000,
+        port=port,
 
-        debug=True
+        debug=False
 
     )
