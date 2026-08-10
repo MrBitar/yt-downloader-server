@@ -1,4 +1,3 @@
-python
 from flask import Flask, request, jsonify, send_file
 import yt_dlp
 import os
