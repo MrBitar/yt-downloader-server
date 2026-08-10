@@ -3,7 +3,7 @@ import yt_dlp
 import os
 import uuid
 
-app = Flask(**name**)
+app = Flask(__name__)
 
 DOWNLOAD_FOLDER = "downloads"
 
@@ -27,7 +27,7 @@ NODE_PATH = "/usr/bin/node"
 
 def get_yt_dlp_options():
 
-```
+
 return {
 
     # ----------------------------------------------------
@@ -96,7 +96,7 @@ return {
             "navigate"
     }
 }
-```
+
 
 # ============================================================
 
@@ -125,7 +125,7 @@ print()
 @app.route("/info", methods=["POST"])
 def get_info():
 
-```
+
 try:
 
     data = request.get_json(silent=True)
@@ -431,7 +431,7 @@ except Exception as e:
             str(e)
 
     }), 500
-```
+
 
 # ============================================================
 
@@ -442,7 +442,7 @@ except Exception as e:
 @app.route("/download", methods=["POST"])
 def download():
 
-```
+
 file_id = None
 
 
@@ -736,7 +736,7 @@ except Exception as e:
             str(e)
 
     }), 500
-```
+
 
 # ============================================================
 
@@ -837,7 +837,7 @@ except Exception as e:
             str(e)
 
     }), 500
-```
+
 
 # ============================================================
 
@@ -851,7 +851,7 @@ methods=["DELETE"]
 )
 def cleanup_file(file_id):
 
-```
+
 try:
 
     filepath = None
@@ -959,7 +959,7 @@ except Exception as e:
             str(e)
 
     }), 500
-```
+
 
 # ============================================================
 
@@ -967,9 +967,9 @@ except Exception as e:
 
 # ============================================================
 
-if **name** == "**main**":
+if __name__ == "__main__":
 
-```
+
 print()
 print("================================")
 print("YT DOWNLOADER BACKEND")
