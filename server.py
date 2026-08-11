@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, send_file
 import yt_dlp
 import os
+import shutil
 import uuid
 
 app = Flask(__name__)
@@ -9,7 +10,15 @@ DOWNLOAD_FOLDER = "downloads"
 
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
-COOKIE_FILE = "/etc/secrets/cookies.txt"
+SECRET_COOKIE_FILE = "/etc/secrets/cookies.txt"
+COOKIE_FILE = "/tmp/cookies.txt"
+
+# Render mounts Secret Files read-only, but yt-dlp rewrites the cookie
+# file after each use to persist rotated session tokens. Copy it to a
+# writable path once at startup so that save doesn't crash the request.
+if os.path.exists(SECRET_COOKIE_FILE):
+
+    shutil.copyfile(SECRET_COOKIE_FILE, COOKIE_FILE)
 
 
 def cookie_options():
