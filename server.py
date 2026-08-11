@@ -36,6 +36,17 @@ def cookie_options():
     return {}
 
 
+def pot_provider_args():
+
+    return {
+        "extractor_args": {
+            "youtubepot-bgutilhttp": {
+                "base_url": ["http://127.0.0.1:4416"]
+            }
+        }
+    }
+
+
 # ============================================================
 # GET VIDEO INFORMATION
 # ============================================================
@@ -85,6 +96,8 @@ def get_info():
             "ignore_no_formats_error": True,
 
             **cookie_options(),
+
+            **pot_provider_args(),
 
         }
 
@@ -375,6 +388,8 @@ def download():
                 False,
 
             **cookie_options(),
+
+            **pot_provider_args(),
 
         }
 
