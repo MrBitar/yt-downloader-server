@@ -80,6 +80,8 @@ def get_info():
 
             "skip_download": True,
 
+            "ignore_no_formats_error": True,
+
             **cookie_options(),
 
         }
