@@ -156,10 +156,20 @@ def get_info():
                 "ext"
             )
 
+            vcodec = fmt.get(
+                "vcodec"
+            )
+
             if not format_id:
                 continue
 
             if not height:
+                continue
+
+            if not vcodec or vcodec == "none":
+                continue
+
+            if extension == "mhtml":
                 continue
 
             qualities.append({
