@@ -140,6 +140,19 @@ def get_info():
             []
         )
 
+        print(f"[formats] Raw format count: {len(formats)}")
+
+        for fmt in formats:
+
+            print(
+                "[formats]",
+                "id:", fmt.get("format_id"),
+                "height:", fmt.get("height"),
+                "vcodec:", fmt.get("vcodec"),
+                "acodec:", fmt.get("acodec"),
+                "ext:", fmt.get("ext"),
+            )
+
         qualities = []
 
         for fmt in formats:
