@@ -74,9 +74,11 @@ def get_info():
 
         options = {
 
-            "quiet": True,
+            "quiet": False,
 
-            "no_warnings": True,
+            "no_warnings": False,
+
+            "verbose": True,
 
             "skip_download": True,
 
