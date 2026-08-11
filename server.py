@@ -16,7 +16,13 @@ def cookie_options():
 
     if os.path.exists(COOKIE_FILE):
 
+        size = os.path.getsize(COOKIE_FILE)
+
+        print(f"[cookies] Using cookie file at {COOKIE_FILE} ({size} bytes)")
+
         return {"cookiefile": COOKIE_FILE}
+
+    print(f"[cookies] No cookie file found at {COOKIE_FILE} - requests will be unauthenticated")
 
     return {}
 
